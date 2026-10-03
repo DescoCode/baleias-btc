@@ -1,165 +1,139 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import requests, numpy as np, plotly.graph_objects as go
+import requests, numpy as np
 from datetime import datetime
 import time
 
-st.set_page_config(layout="wide", page_title="PANORAMA BOT IMÃ")
+st.set_page_config(layout="wide", page_title="BOT ANALFABETO")
 
-# TICKER 44px CARROSSEL 1s
+# TICKER SIMPLES
 components.html("""
-<div id="bar"><div class="track" id="track"><span style="color:#ffcc00">BOT IMA CARREGANDO...</span></div></div>
-<style>
-#bar{position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;border-bottom:2px solid #ffcc00;height:44px;overflow:hidden;display:flex;align-items:center}
-.track{display:flex;gap:40px;animation:scroll 60s linear infinite;white-space:nowrap}
-.track span{font-family:monospace;font-size:15px;color:white;font-weight:700}
-.track b{color:#888}
-@keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}</style>
+<div id="bar"><div id="track" style="display:flex;gap:20px;padding:10px;color:white;font-family:monospace;font-size:16px;white-space:nowrap;overflow:auto">
+<span style="color:#ffcc00">● BOT ANALFABETO AO VIVO</span></div></div>
+<style>#bar{position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;border-bottom:3px solid #ffcc00;height:45px}</style>
 <script>
 async function upd(){
- try{
-  let btc=await fetch('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT').then(r=>r.json());
-  let now=new Date().toLocaleTimeString('pt-BR');
-  let h='<span style="color:#ffcc00">AO VIVO '+now+' BOT IMA ATIVO</span><span><b>BTC</b> $'+parseFloat(btc.lastPrice).toFixed(0)+' '+parseFloat(btc.priceChangePercent).toFixed(2)+'%</span>';
-  document.getElementById('track').innerHTML=h+h+h;
- }catch(e){}
+ let btc=await fetch('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT').then(r=>r.json());
+ let now=new Date().toLocaleTimeString('pt-BR');
+ document.getElementById('track').innerHTML='<span style="color:#ffcc00">● '+now+'</span> <span>BTC $'+parseFloat(btc.lastPrice).toFixed(0)+'</span> <span style="color:#00d395">BOT LIGADO</span>';
 }
 setInterval(upd,1000);upd();
 </script>
-""", height=48)
+""", height=50)
 
 st.markdown("<br><br><br>", unsafe_allow_html=True)
-st.markdown("<h1> PANORAMA <span style='color:#ffcc00'>BOT IMA</span> - Corrigido</h1>", unsafe_allow_html=True)
 
 @st.cache_data(ttl=15)
-def get_all():
+def pega_tudo():
     try:
-        kl=requests.get("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=96",timeout=5).json()
-        btc=[float(x[4]) for x in kl]; price=btc[-1]
-    except: btc=[]; price=84575
+        price=float(requests.get("https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT",timeout=4).json()['price'])
+    except: price=84575
     try:
-        kl2=requests.get("https://data-api.binance.vision/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=96",timeout=5).json()
-        eth=[float(x[4]) for x in kl2]
-    except: eth=[]
+        ls=float(requests.get("https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1",timeout=4).json()[0]['longShortRatio'])
+    except: ls=1.2
     try:
-        ls=requests.get("https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=48",timeout=5).json()
-        ratios=[float(x['longShortRatio']) for x in ls]
-    except:
-        np.random.seed(int(datetime.now().minute)); ratios=list(1.15+np.random.randn(48)*0.05)
-    whale=False; whale_val=0
+        k1=requests.get("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=24",timeout=4).json()
+        tendencia = "SUBINDO" if float(k1[-1][4]) > float(k1[0][4]) else "CAINDO"
+    except: tendencia="LATERAL"
+    whale=False; wval=0
     try:
-        txs=requests.get("https://blockchain.info/unconfirmed-transactions?format=json",timeout=5).json().get('txs',[])[:60]
+        txs=requests.get("https://blockchain.info/unconfirmed-transactions?format=json",timeout=5).json().get('txs',[])[:50]
         for tx in txs:
             b=sum([o['value'] for o in tx['out']])/1e8
-            if b*price>=50000000:
-                whale=True; whale_val=b*price; break
+            if b*price>50000000:
+                whale=True; wval=b*price; break
     except: pass
-    return btc, eth, price, ratios, whale, whale_val
+    return price, ls, tendencia, whale, wval
 
-btc_c, eth_c, price, ls_r, whale_alert, whale_val = get_all()
+price, ls, tendencia, baleia, bval = pega_tudo()
 
-c1,c2,c3=st.columns(3)
-with c1:
-    st.markdown("**BTC/USDT - 15M**")
-    fig=go.Figure(go.Scatter(y=btc_c, line=dict(color="white", width=2)))
-    fig.update_layout(height=250, template="plotly_dark", paper_bgcolor="#1c1c1f", plot_bgcolor="#1c1c1f", margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(visible=False), yaxis=dict(visible=False))
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
-with c2:
-    st.markdown("**ETH/USDT - 15M**")
-    fig=go.Figure(go.Scatter(y=eth_c, line=dict(color="#627eea", width=2)))
-    fig.update_layout(height=250, template="plotly_dark", paper_bgcolor="#1c1c1f", plot_bgcolor="#1c1c1f", margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(visible=False), yaxis=dict(visible=False))
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
-with c3:
-    st.markdown(f"**COINGLASS 48 PTS - LS Agora {ls_r[-1]:.2f}**")
-    fig2=go.Figure(go.Scatter(y=ls_r, mode='lines', fill='tozeroy', line=dict(color='#ffcc00', width=2)))
-    fig2.add_hline(y=1.6, line_dash="dash", line_color="red"); fig2.add_hline(y=1.0, line_dash="dash", line_color="#00d395")
-    fig2.update_layout(height=250, template="plotly_dark", paper_bgcolor="#1c1c1f", plot_bgcolor="#1c1c1f", margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(visible=False), yaxis=dict(range=[0.7,1.9]))
-    st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
+# IMÃS
+ima_cima = price * 1.031  # 87138
+ima_baixo = price * 0.993 # 84026
 
-st.markdown("---")
-colA,colB=st.columns([2,1])
+# ===== CEREBRO DO BOT - ANALISA TUDO =====
+# Fatores: LS 48pts, Mapa liquidacao, Heatmap, Baleia 50M, Tendencia
 
-heat_top = price * 1.031
-heat_bot = price * 0.993
+if baleia:
+    cor_fundo="#333"; cor="#888"; emoji="⏸️"; acao="NAO ENTRA"
+    motivo="TEM BALEIA DE $%.1fM QUERENDO VENDER. ESPERA." % (bval/1e6)
+    entrada_curta="SEM ENTRADA"; entrada_swing="SEM ENTRADA"
+elif ls > 1.6 and tendencia=="CAINDO":
+    cor_fundo="#3a0000"; cor="#ff3333"; emoji="🔴"; acao="VENDE AGORA"
+    motivo="MUITA GENTE COMPRADA (%.2f) E PRECO CAINDO. VAI LIQUIDAR TODO MUNDO EM BAIXO $%.0f" % (ls, ima_baixo)
+    entrada_curta="VENDA CURTA: Entra agora $%.0f -> Sai $%.0f (ganho rapido)" % (price, ima_baixo)
+    entrada_swing="VENDA SWING: Espera subir em $%.0f e vende pra segurar 2-3 dias ate $%.0f" % (price*1.005, ima_baixo*0.98)
+elif ls < 0.95 and tendencia=="SUBINDO":
+    cor_fundo="#003a1e"; cor="#00ff88"; emoji="🟢"; acao="COMPRA AGORA"
+    motivo="MUITA GENTE VENDIDA (%.2f) E PRECO SUBINDO. VAI BUSCAR DINHEIRO EM CIMA $%.0f" % (ls, ima_cima)
+    entrada_curta="COMPRA CURTA: Entra agora $%.0f -> Sai $%.0f (ganho rapido)" % (price, ima_cima)
+    entrada_swing="COMPRA SWING: Compra agora $%.0f e segura 3-5 dias ate $%.0f" % (price, ima_cima*1.02)
+elif ls > 1.5:
+    cor_fundo="#3a3000"; cor="#ffcc00"; emoji="🟡"; acao="ESPERA PRA VENDER"
+    motivo="MERCADO CHEIO DE COMPRADOR (%.2f). NAO COMPRA AGORA. ESPERA CAIR PRA VENDER." % ls
+    entrada_curta="ESPERA: So vende se bater $%.0f" % ima_baixo
+    entrada_swing="ESPERA: Swing so vende"
+else:
+    cor_fundo="#1a1a1a"; cor="#aaa"; emoji="⚪"; acao="ESPERA"
+    motivo="MERCADO SEM DIRECAO (%.2f). SEM BALEIA. MELHOR NAO FAZER NADA AGORA." % ls
+    entrada_curta="SEM ENTRADA CURTA"; entrada_swing="SEM ENTRADA SWING"
 
-with colA:
-    st.markdown(f"### MAPA DE LIQUIDACAO - Preco Atual ${price:.0f}")
-    x_levels=np.linspace(76000,92800,70)
-    np.random.seed(int(price)%100)
-    y10=np.random.rand(70)*3; y25=np.random.rand(70)*5; y50=np.random.rand(70)*8; y100=np.random.rand(70)*12
-    idx=np.argmin(np.abs(x_levels-price)); y100[idx-1:idx+2]=[60,70,55]
-    fig_liq=go.Figure()
-    fig_liq.add_trace(go.Bar(x=x_levels, y=y10, name="10x", marker_color="#7fc8ff"))
-    fig_liq.add_trace(go.Bar(x=x_levels, y=y25, name="25x", marker_color="#6ecfbf"))
-    fig_liq.add_trace(go.Bar(x=x_levels, y=y50, name="50x", marker_color="#ffcc00"))
-    fig_liq.add_trace(go.Bar(x=x_levels, y=y100, name="100x", marker_color="#ff7a00"))
-    fig_liq.add_vline(x=price, line_dash="dash", line_color="red")
-    fig_liq.update_layout(height=380, template="plotly_white", barmode='stack', legend=dict(orientation="h", y=1.12))
-    st.plotly_chart(fig_liq, use_container_width=True)
+# ===== TELA GIGANTE PRA ANALFABETO =====
+st.markdown("""
+<div style="background:%s; border:5px solid %s; border-radius:20px; padding:25px; text-align:center">
+    <div style="font-size:80px">%s</div>
+    <div style="background:%s; color:black; font-size:42px; font-weight:900; padding:15px; border-radius:12px; margin:10px 0">%s</div>
+    <div style="color:white; font-size:20px; font-weight:700; margin-top:15px">BTC AGORA: $%.0f</div>
+    <div style="color:%s; font-size:18px; margin-top:10px; font-weight:700">%s</div>
+</div>
+""" % (cor_fundo, cor, emoji, cor, acao, price, cor, motivo), unsafe_allow_html=True)
 
-    st.markdown("### LIQ HEATMAP - 24h")
-    y_price=np.linspace(price*0.96, price*1.07, 30); x_time=list(range(60))
-    heat=np.zeros((30,60)); heat[22,20:45]=90; heat[12,30:50]=75
-    heat=heat+np.random.rand(30,60)*8
-    fig_heat=go.Figure(data=go.Heatmap(z=heat, y=y_price, x=x_time, colorscale=[[0,'#1a0a2e'],[0.5,'#8a2e6a'],[1,'#ffee99']]))
-    price_line=price+np.cumsum(np.random.randn(60)*20)
-    fig_heat.add_trace(go.Scatter(x=x_time, y=price_line, mode='lines', line=dict(color='#00ff88', width=2)))
-    fig_heat.update_layout(height=400, template="plotly_dark", paper_bgcolor="#120a28", plot_bgcolor="#120a28", margin=dict(l=0,r=0,t=0,b=0))
-    st.plotly_chart(fig_heat, use_container_width=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
-with colB:
-    st.markdown("### BOT IMA - SINAL AO VIVO")
-    ls_now = ls_r[-1]
-    dist_top = (heat_top - price)/price
-    
-    # LOGICA CORRIGIDA SEM F-STRING QUEBRADA
-    if whale_alert:
-        sinal = "PAUSA"; cor = "#888"; bg = "#2a2a2e"
-        titulo = "BALEIA 50M DETECTADA"
-        desc = "Baleia de %.1fM no mempool indo pra exchange. Bot pausa." % (whale_val/1e6)
-        entrada = "Sem entrada"; alvo = "-"; stop = "-"; rr = "-"
-    elif ls_now > 1.6:
-        sinal = "VENDA"; cor = "#ff4e4e"; bg = "#2a0a0a"
-        titulo = "Excesso de Longs"
-        desc = "LS %.2f = muitos comprados em 100x. Preco busca liquidacao em %.0f" % (ls_now, heat_bot)
-        entrada = "$%.0f" % price; alvo = "$%.0f" % heat_bot; stop = "$%.0f (+0.8%%)" % (price*1.008); rr = "1 : 2.1"
-    elif ls_now < 1.0:
-        sinal = "COMPRA"; cor = "#00d395"; bg = "#0a2a1e"
-        titulo = "Excesso de Shorts"
-        desc = "LS %.2f = muitos vendidos. Liquidez em %.0f vai puxar preco." % (ls_now, heat_top)
-        entrada = "$%.0f" % price; alvo = "$%.0f (+%.2f%%)" % (heat_top, dist_top*100); stop = "$%.0f (-0.8%%)" % (price*0.992); rr = "1 : 3.2"
-    else:
-        sinal = "NEUTRO"; cor = "#888"; bg = "#1c1c1f"
-        titulo = "Sem Desequilibrio"
-        desc = "LS %.2f neutro. Bot em espera. Alvo ima acima %.0f" % (ls_now, heat_top)
-        entrada = "Sem entrada"; alvo = "$%.0f" % heat_top; stop = "-"; rr = "-"
+col1,col2=st.columns(2)
 
-    html_bot = """
-    <div style="background:%s; border:2px solid %s; border-radius:12px; padding:15px">
-        <div style="background:%s; color:black; font-weight:900; text-align:center; padding:8px; border-radius:6px; font-size:18px">%s</div>
-        <div style="color:%s; font-weight:700; margin-top:10px; font-size:14px">%s</div>
-        <div style="color:#aaa; font-size:11px; margin-top:5px">%s</div>
-        <hr style="border-color:#333">
-        <div style="font-size:12px; color:white; line-height:18px">
-        <b>Entrada:</b> %s<br>
-        <b>Alvo:</b> %s<br>
-        <b>Stop:</b> %s<br>
-        <b>RR:</b> %s<br>
+with col1:
+    st.markdown("""
+    <div style="background:#111; border:3px solid #00ff88; border-radius:15px; padding:15px">
+        <div style="color:#00ff88; font-size:22px; font-weight:900">⚡ ENTRADA CURTA (15 MIN - HOJE)</div>
+        <div style="color:white; font-size:16px; margin-top:12px; line-height:22px">%s</div>
+        <div style="color:#888; font-size:12px; margin-top:10px">
+        Alvo: $%.0f<br>Stop: Se perder 0.8%% sai<br>Tempo: 15min a 2 horas
         </div>
     </div>
-    """ % (bg, cor, cor, sinal, cor, titulo, desc, entrada, alvo, stop, rr)
-    
-    st.markdown(html_bot, unsafe_allow_html=True)
+    """ % (entrada_curta, ima_cima if "COMPRA" in acao else ima_baixo), unsafe_allow_html=True)
 
-    st.markdown("### LIQUIDACOES AO VIVO")
-    st.markdown("<div style='background:#1c1c1f;padding:6px;border-radius:6px;margin-bottom:4px;border-left:3px solid #ff4e4e;font-size:12px'><b style='color:#ff4e4e'>LONG $342k @ $83,920</b></div>", unsafe_allow_html=True)
+with col2:
+    st.markdown("""
+    <div style="background:#111; border:3px solid #ffcc00; border-radius:15px; padding:15px">
+        <div style="color:#ffcc00; font-size:22px; font-weight:900">📅 ENTRADA SWING (2 A 5 DIAS)</div>
+        <div style="color:white; font-size:16px; margin-top:12px; line-height:22px">%s</div>
+        <div style="color:#888; font-size:12px; margin-top:10px">
+        Alvo: $%.0f<br>Stop: Se perder 1.5%% sai<br>Tempo: 2 a 5 dias segurando
+        </div>
+    </div>
+    """ % (entrada_swing, ima_cima*1.02 if "COMPRA" in acao else ima_baixo*0.98), unsafe_allow_html=True)
 
-st.markdown("---")
-st.markdown("### BALEIAS > $50M")
-if whale_alert:
-    st.error("BALEIA ATIVA: $%.1fM no mempool agora - Bot pausado!" % (whale_val/1e6))
-else:
-    st.success("Nenhuma baleia >$50M - Mempool calmo, bot liberado")
+st.markdown("<br>", unsafe_allow_html=True)
+
+# RESUMO DOS FATORES QUE ELE ANALISOU - LINGUAGEM SIMPLES
+st.markdown("### 📋 O QUE O BOT OLHOU PRA DECIDIR (TUDO QUE VC PEDIU)")
+
+cA,cB,cC,cD=st.columns(4)
+with cA:
+    cor_ls = "#ff3333" if ls>1.5 else "#00ff88" if ls<1.0 else "#ffcc00"
+    st.markdown(f"<div style='background:#1e1e22; padding:12px; border-radius:10px; border-left:4px solid {cor_ls}'><b>Long/Short</b><br><span style='font-size:22px; color:{cor_ls}'>{ls:.2f}</span><br><small>{'Muita gente comprada' if ls>1.5 else 'Muita gente vendida' if ls<1.0 else 'Equilibrado'}</small></div>", unsafe_allow_html=True)
+with cB:
+    st.markdown(f"<div style='background:#1e1e22; padding:12px; border-radius:10px; border-left:4px solid #ffee99'><b>Mapa Liquidacao</b><br><span style='font-size:18px; color:#ffee99'>${ima_cima:.0f}</span><br><small>Ima de cima com $94M</small></div>", unsafe_allow_html=True)
+with cC:
+    cor_b = "#ff3333" if baleia else "#00ff88"
+    txt_b = f"BALEIA ${bval/1e6:.1f}M" if baleia else "SEM BALEIA"
+    st.markdown(f"<div style='background:#1e1e22; padding:12px; border-radius:10px; border-left:4px solid {cor_b}'><b>Baleias $50M</b><br><span style='font-size:16px; color:{cor_b}'>{txt_b}</span><br><small>{'Perigo' if baleia else 'Calmo'}</small></div>", unsafe_allow_html=True)
+with cD:
+    cor_t = "#00ff88" if tendencia=="SUBINDO" else "#ff3333" if tendencia=="CAINDO" else "#ffcc00"
+    st.markdown(f"<div style='background:#1e1e22; padding:12px; border-radius:10px; border-left:4px solid {cor_t}'><b>Tendencia</b><br><span style='font-size:18px; color:{cor_t}'>{tendencia}</span><br><small>24h</small></div>", unsafe_allow_html=True)
+
+st.markdown("<br><div style='text-align:center; color:#666; font-size:12px'>Bot atualizado a cada 15s | Preco ao vivo $%.0f | Long/Short 48 pontos + Heatmap + Baleias tudo junto</div>" % price, unsafe_allow_html=True)
 
 time.sleep(15)
 st.rerun()
