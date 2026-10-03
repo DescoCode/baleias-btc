@@ -1,9 +1,44 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import requests
+import time
 
-st.set_page_config(layout='wide', page_title='LATUS V31 50M ONLY', page_icon='🐋')
+st.set_page_config(layout='wide', page_title='LATUS V32 - $50M ONLY', page_icon='🐋')
 
-html_code = """
-<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>LATUS V31</title><script src='https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js'></script><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0e;color:#fff;font-family:monospace}.topbar{position:fixed;top:0;left:0;right:0;height:44px;background:#000;border-bottom:2px solid #ffcc00;display:flex;align-items:center;padding:0 12px;z-index:9999;gap:16px;overflow:auto;font-size:13px}.block{background:#13131a;border:1px solid #222;border-radius:12px;padding:12px;margin-bottom:12px}.block-title{font-size:11px;color:#ffcc00;font-weight:900;margin-bottom:8px;display:flex;justify-content:space-between}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:56px 12px 12px}.full{grid-column:1/-1}.score{font-size:42px;font-weight:900;padding:18px;border-radius:12px;text-align:center}.badge{padding:3px 7px;border-radius:6px;font-size:10px;font-weight:800;border:1px solid}.g{color:#00ff88;border-color:#00ff88}.r{color:#ff3333;border-color:#ff3333}.whale{border-left:5px solid #ff3333;background:#2a0000;padding:10px;margin-bottom:8px;border-radius:8px;font-size:12px;border:1px solid #ff3333}table{width:100%;border-collapse:collapse;font-size:11px}th{color:#666;text-align:left;padding:5px}td{padding:5px;border-top:1px solid #222}</style></head><body><div class='topbar' id='topbar'>LATUS V31 - 50M ONLY - HIGH WINRATE</div><div class='grid'><div class='block full' style='border:3px solid #ffcc00'><div class='block-title'>ROBO DETETIVE - SOMENTE ALTA 75%+ <span id='botTime'></span> <span class='badge g' id='winrate'>WINRATE --</span></div><div class='score' id='scoreBox' style='background:#111;border:2px solid #333'>AGUARDANDO CONFLUENCIA ALTA...</div><div style='margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:10px' id='checks'></div><div style='margin-top:8px;font-size:11px;color:#aaa' id='motivos'></div><div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px'><div style='background:#0f2318;border:1px solid #00ff88;border-radius:8px;padding:12px'><div style='color:#00ff88;font-weight:900'>ENTRADA PRINCIPAL (ALTA PRECISAO)</div><div id='entradaPrincipal' style='font-size:14px;margin-top:6px;font-weight:800'>ESPERA</div><div id='alvoPrincipal' style='font-size:11px;color:#aaa;margin-top:4px'></div></div><div style='background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px'><div style='color:#666;font-weight:900'>ULTIMO SINAL ALTA</div><div id='ultimoSinal' style='font-size:12px;margin-top:6px'>Nenhum ainda - score precisa 3.5+</div></div></div></div><div class='block full'><div class='block-title'>BTCUSDT - GRAFICO ONLINE FIX <span class='badge g' id='chartStatus'>LIVE 15s</span></div><div id='tvchart' style='height:400px'></div></div><div class='block'><div class='block-title'>FILTROS ONLINE BINANCE (RATIO)</div><table><tr><td>Long/Short Ratio Global</td><td id='ls'>-</td><td id='lsCheck'>-</td></tr><tr><td>Top Trader Pos (1.94 print)</td><td id='topPos'>-</td><td id='topCheck'>-</td></tr><tr><td>Funding Rate</td><td id='funding'>-</td><td id='fundCheck'>-</td></tr><tr><td>RSI 15m</td><td id='rsi'>-</td><td id='rsiCheck'>-</td></tr><tr><td>OI</td><td id='oi'>-</td><td>OK</td></tr><tr><td>Whale >$50M</td><td id='whaleCheck'>-</td><td id='whaleStatus'>-</td></tr></table></div><div class='block' style='border:2px solid #ff3333'><div class='block-title'>🚨 WHALE ALERT SOMENTE >$50M <span class='badge r'>CRITICO</span></div><div id='whales'>Monitorando mempool... So >$50M mostra</div><div style='font-size:9px;color:#555;margin-top:8px'>Filtro: $10M removido | So $50M+ aparece + bloqueia robo 30min + link trilha mempool.space</div></div></div><script>
-let priceNow=84800,lastWhale50Time=0,klinesData=[],chart,candleSeries;
-function initChart(){chart=LightweightCharts.createChart(document.getElementById('tvchart'),{layout:{background:{color:'#13131a'},textColor:'#aaa'},grid:{vertLines:{color:'#1a1a1a'},horzLines:{color:'#1a1a
+st.markdown("""
+<style>
+.score{font-size:42px;font-weight:900;padding:20px;border-radius:12px;text-align:center}
+.whale{border-left:5px solid #ff3333;background:#2a0000;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #ff3333}
+</style>
+""", unsafe_allow_html=True)
+
+@st.cache_data(ttl=5)
+def get_data():
+    try:
+        p = requests.get("https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT", timeout=5).json()
+        price = float(p['price'])
+        ls = requests.get("https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1", timeout=5).json()
+        ls_val = float(ls[0]['longShortRatio'])
+        top = requests.get("https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=BTCUSDT&period=5m&limit=1", timeout=5).json()
+        top_val = float(top[0]['longShortRatio'])
+        fund = requests.get("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT", timeout=5).json()
+        funding = float(fund['lastFundingRate'])*100
+        oi = requests.get("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT", timeout=5).json()
+        oi_val = float(oi['openInterest'])
+        kl = requests.get("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=100", timeout=5).json()
+        closes = [float(k[4]) for k in kl]
+        gains = [closes[i]-closes[i-1] for i in range(1,15) if closes[i]>closes[i-1]]
+        losses = [abs(closes[i]-closes[i-1]) for i in range(1,15) if closes[i]<closes[i-1]]
+        avgG = sum(gains)/len(gains) if gains else 0.1
+        avgL = sum(losses)/len(losses) if losses else 0.1
+        rs = avgG/(avgL+0.0001)
+        rsi = 100-(100/(1+rs))
+        return price, ls_val, top_val, funding, oi_val, rsi
+    except:
+        return 84800, 1.2, 1.9, 0.0005, 97500, 45
+
+@st.cache_data(ttl=20)
+def get_whales(price):
+    whales = []
+    try:
+        data = requests.get("https://blockchain.info/unconfirmed-transactions?format=json", timeout=8).json()
+        for tx in data['txs'][:150]:
