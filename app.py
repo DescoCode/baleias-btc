@@ -1,8 +1,7 @@
 import streamlit as st
 import requests
-import time
 
-st.set_page_config(layout='wide', page_title='LATUS V32 - $50M ONLY', page_icon='🐋')
+st.set_page_config(layout='wide', page_title='LATUS V32 - 50M ONLY', page_icon='🐋')
 
 st.markdown("""
 <style>
@@ -26,8 +25,14 @@ def get_data():
         oi_val = float(oi['openInterest'])
         kl = requests.get("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=100", timeout=5).json()
         closes = [float(k[4]) for k in kl]
-        gains = [closes[i]-closes[i-1] for i in range(1,15) if closes[i]>closes[i-1]]
-        losses = [abs(closes[i]-closes[i-1]) for i in range(1,15) if closes[i]<closes[i-1]]
+        gains = []
+        losses = []
+        for i in range(1,15):
+            d = closes[-i] - closes[-i-1]
+            if d > 0:
+                gains.append(d)
+            else:
+                losses.append(abs(d))
         avgG = sum(gains)/len(gains) if gains else 0.1
         avgL = sum(losses)/len(losses) if losses else 0.1
         rs = avgG/(avgL+0.0001)
@@ -41,4 +46,43 @@ def get_whales(price):
     whales = []
     try:
         data = requests.get("https://blockchain.info/unconfirmed-transactions?format=json", timeout=8).json()
-        for tx in data['txs'][:150]:
+        txs = data['txs'][:150]
+        for tx in txs:
+            btc = sum([o['value'] for o in tx['out']])/1e8
+            usd = btc*price
+            if usd >= 50000000:
+                whales.append({"btc":btc, "usd":usd, "hash":tx['hash']})
+    except:
+        pass
+    return whales
+
+price, ls_val, top_val, funding, oi_val, rsi = get_data()
+whales = get_whales(price)
+
+ls_pass_long = 0.9 <= ls_val <= 1.30
+ls_pass_short = ls_val >= 1.70
+top_pass_long = top_val > 1.80
+rsi_pass_long = 32 <= rsi <= 52
+fund_pass = -0.02 < funding < 0.03
+whale_block = len(whales) > 0
+
+score = 0
+if ls_pass_long:
+    score += 2
+if ls_pass_short:
+    score -= 2
+if top_pass_long:
+    score += 1.5
+if rsi_pass_long:
+    score += 1.5
+if fund_pass:
+    score += 0.5
+if whale_block:
+    score = 0
+
+winrate = 82 if abs(score) >= 4.5 else 76 if abs(score) >= 3.5 else 45
+
+st.markdown(f"**BTC ${price:.0f} | LS {ls_val:.2f} | TOP {top_val:.2f} | RSI {rsi:.0f}**")
+
+if whale_block:
+    st.markdown(f"<div class='score' style='background:#2a0000;border:3px solid #ff3333;color:#ff3333'>BLOQUEADO - {len(
